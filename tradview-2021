@@ -1,0 +1,210 @@
+//@version=4
+strategy("Heikin Ashi Strategy  V2",shorttitle="HAS V2",overlay=true, default_qty_value=450,initial_capital=200,currency=currency.EUR)
+
+////////////////////////// === Parameter Values === ////////////////////////////
+
+
+hshift = input(29, title="TFrame Shift Candle [CADJPY]")
+sloma = input(217, "Slow EMA Period [CADJPY]")
+nr = '148'
+
+pl = input(defval = 1.8, title = "Take Profit (Buy)", minval = 0, step=0.1)
+ps = input(defval = 7.2, title = "Take Profit (Sell)", minval = 0, step=0.1)
+
+Stoploss = input(defval = 0.3, title = "Default Stoploss", minval = 0, step=0.05)
+
+buy = time(timeframe.period, "1000-1100:35")
+sell = time(timeframe.period, "1000-1800:16")
+
+
+/////////////////////// === PROFIT / STOPLOSS RULES === ////////////////////////
+
+profitlevel() =>
+    if strategy.position_size > 0
+        profitlevel = strategy.position_avg_price + pl
+    else
+        if strategy.position_size < 0
+            profitlevel = strategy.position_avg_price - ps
+
+stoplevel() =>
+    if strategy.position_size < 0
+        stoplevel = strategy.position_avg_price + Stoploss
+    else
+        if strategy.position_size > 0
+            stoplevel = strategy.position_avg_price - Stoploss
+
+ordersize() =>
+    if syminfo.tickerid == "AUDCAD"
+        ordersize = 780
+    else
+        if syminfo.tickerid == "AUDJPY" or syminfo.tickerid=="CADJPY"
+            ordersize = 450
+        else
+            if syminfo.tickerid == "GBPJPY"
+                ordersize = 270
+            else
+                if syminfo.tickerid == "EURUSD"
+                    ordersize = 415 
+                else
+                    if syminfo.tickerid == "EURNZD"
+                        ordersize = 560 
+
+/////////////////////// === CORE AND TEST FUNCTIONS === ////////////////////////
+
+tm = input(title="Timer", defval="Alltime", options=["Alltime", "00-12", "03-15", "06-18", "09-21", "12-00", "15-03", "18-06", "21-09"])
+wd = input(title="Weekdays", defval="Alldays", options=["Alldays", "1.Monday", "2.Tuesday", "3.Wednesday", "4.Thursday", "5.Friday", "6.Saturday", "7.Sunday"])
+FromYear  = input(defval = 2018, title = "From Year", minval = 2018)
+ToMonth   = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+Show = input(true, title = "Show Indicators")
+ShowTime = input(false, title = "Visual Trading times")
+Btest = input(true, title = "Backtest from start/end")
+ATRX_Filter = input(false, title = "ATR/Ichimoku Filters")
+TDFilter = input(false, title = "Time/Date Filters")
+
+ttbuy = TDFilter ? buy : time(timeframe.period, "0000-0000:1234567")
+ttsell = TDFilter ? sell : time(timeframe.period, "0000-0000:1234567")
+
+week() =>
+    if wd == "Alldays"
+        week = time(timeframe.period, "0000-0000:1234567")
+    else
+        if wd == "1.Monday"
+            week = time(timeframe.period, "0000-0000:134567")
+        else
+            if wd == "2.Tuesday"
+                week = time(timeframe.period, "0000-0000:124567")
+            else
+                if wd == "3.Wednesday"
+                    week = time(timeframe.period, "0000-0000:123567")
+                else
+                    if wd == "4.Thursday"
+                        week = time(timeframe.period, "0000-0000:123467")
+                    else
+                        if wd == "5.Friday"
+                            week = time(timeframe.period, "0000-0000:123457")
+                        else
+                            if wd == "6.Saturday"
+                                week = time(timeframe.period, "0000-0000:123456")    
+                            else
+                                if wd == "7.Sunday"
+                                    week = time(timeframe.period, "0000-0000:234567")
+
+timer() =>
+    if tm == "Alltime"
+        timer = time(timeframe.period, "0000-0000:1234567")
+    else
+        if tm == "00-12"
+            timer = time(timeframe.period, "0000-1200:1234567")
+        else
+            if tm == "03-15"
+                timer = time(timeframe.period, "0300-1500:1234567")
+            else
+                if tm == "06-18"
+                    timer = time(timeframe.period, "0600-1800:1234567")
+                else
+                    if tm == "09-21"
+                        timer = time(timeframe.period, "0900-2100:1234567")
+                    else
+                        if tm == "12-00"
+                            timer = time(timeframe.period, "1200-0000:1234567")
+                        else
+                            if tm == "15-03"
+                                timer = time(timeframe.period, "1500-0300:1234567")
+                            else
+                                if tm == "18-06"
+                                    timer = time(timeframe.period, "1800-0600:1234567")
+                                else
+                                    if tm == "21-09"
+                                        timer = time(timeframe.period, "2100-0900:1234567")
+
+ttday = timer() and week()
+
+BuyProfit   = pl  >= 1 ? pl  : na
+SellProfit     = ps    >= 1 ? ps    : na
+
+//Heikin Ashi Open/Close Price
+ha_t = heikinashi(syminfo.tickerid)
+ha_close = security(ha_t, timeframe.period, close[hshift])
+mha_close = security(ha_t, timeframe.period, close)
+
+xHigh  = security(syminfo.tickerid, timeframe.period, high[1])
+xLow   = security(syminfo.tickerid, timeframe.period, low[1])
+xClose = security(syminfo.tickerid, timeframe.period, close[1])
+pivot = (xHigh+xLow+xClose) / 3
+
+//Moving Average
+sma = ema(ha_close,sloma)
+
+//True Range for profit limits
+
+highD = security(syminfo.tickerid, nr, high)
+closeD = security(syminfo.tickerid, nr, close)
+lowD = security(syminfo.tickerid, nr, low)
+
+true_range() =>
+    max(high - low, max(abs(high - close[1]), abs(low - close[1])))
+
+true_range2() =>
+    max(highD - lowD, max(abs(highD - closeD[1]), abs(lowD - closeD[1])))
+
+
+///////////////////////// === INPUT BACKTEST RANGE === /////////////////////////
+
+FromMonth = 1
+ToYear    = FromYear
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, 1, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, 31, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : Btest // create function "within window of time"
+
+/////////////////////// === PLOT INDICATORS & RULES === ////////////////////////
+
+// Determine and plot the take profit orders
+takeLongPrice =
+     (strategy.position_size > 0) ? strategy.position_avg_price + 30 :
+     na
+
+takeShortPrice =
+     (strategy.position_size < 0) ? strategy.position_avg_price - 30 :
+     na
+
+// Perform plotting and colouring
+backgroundColour = takeLongPrice ? color.green :
+     takeShortPrice ? color.red :
+     na
+
+//View my trading sessions
+BarInWeek1() => ttbuy != 0
+BarInWeek2() => ttsell != 0
+
+// Set the colour variables for the ranges
+Colour1 = #19EB99 // Pale green
+Colour2 = #6495ED // Cornflower blue
+
+// Determine the chart's background colour
+chartColour = ShowTime and BarInWeek1() ? Colour1 :
+     ShowTime and BarInWeek2() ? Colour2 :
+     na
+
+//Ploting Indicators
+plot(Show and sma ? sma : na)
+plot(Show and stoplevel() ? stoplevel() : na, color=color.red)
+bgcolor(color=backgroundColour, transp=80) //Visual trading track
+bgcolor(color=chartColour, transp=60) //Visual trading times
+
+/////////////////////////////// === Strategy === ///////////////////////////////
+
+ruleOne_buy = crossover(mha_close,sma) and (ha_close < pivot) and window() and ttbuy
+ruleOne_sell = crossunder(mha_close,sma) and (ha_close > pivot) and window() and ttsell
+ruleTwo = (true_range() < true_range2())
+
+atrx_buy = ATRX_Filter ? ruleTwo : ruleOne_buy
+atrx_sell = ATRX_Filter ? ruleTwo : ruleOne_sell
+
+golong = ruleOne_buy and atrx_buy and ttbuy
+goshort = ruleOne_sell and atrx_sell and ttsell
+
+strategy.entry("Buy", strategy.long, ordersize(), when = golong)
+strategy.entry("Sell", strategy.short, ordersize(), when = goshort)
+strategy.exit("Stop", stop = stoplevel(), limit = profitlevel())
