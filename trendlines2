@@ -1,0 +1,34 @@
+//@version=4
+study("Horizontal Lines", overlay=true)
+
+pricedifference = 0.
+linesval = 0
+selectedprice = 0.
+trunc = 0.
+transblue = color.new(color.blue, 70)
+t = timestamp(year(timenow), month(timenow), dayofmonth(timenow), 0, 0)
+linesval := input(title="How many lines draw above / below", type=input.integer, defval=2)
+
+truncate(number, decimals) =>
+    factor = pow(10, decimals)
+    int(number * factor) / factor
+
+if (close >= 3)
+    trunc := truncate(close, 0)
+if (close < 3)
+    trunc := truncate(close, 2)
+
+if time >= t and na(selectedprice[1])
+    selectedprice := trunc
+else
+    selectedprice := selectedprice[1]
+
+if (selectedprice >= 3)
+    pricedifference := 1
+if (selectedprice < 3)
+    pricedifference := 0.01
+
+line.new(bar_index, selectedprice, bar_index[200], selectedprice, width = 1, color=transblue)
+for i = 1 to linesval
+    line.new(bar_index, selectedprice+(pricedifference*i), bar_index[200], selectedprice+(pricedifference*i), color=transblue)
+    line.new(bar_index, selectedprice-(pricedifference*i), bar_index[200], selectedprice-(pricedifference*i), color=transblue)
